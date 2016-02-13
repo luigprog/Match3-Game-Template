@@ -1,12 +1,15 @@
 ﻿using UnityEngine;
 
+#if UNITY_EDITOR
+[ExecuteInEditMode]
+#endif
 public class Grid : MonoBehaviour
 {
     [SerializeField]
-    private int xSize;
+    private int width;
 
     [SerializeField]
-    private int ySize;
+    private int height;
 
     [SerializeField]
     private float spacement;
@@ -15,21 +18,51 @@ public class Grid : MonoBehaviour
     private int[] spawnCellsIds;
 
     private Cell[,] cells;
+    private readonly Vector3 CELL_GIZMO_SIZE = new Vector3(0.6f, 0.6f, 0.6f);
 
-    private readonly Vector3 CELL_GIZMO_SIZE = new Vector3(1.0f, 1.0f, 1.0f);
-
-    public void F2()
+    private void Awake()
     {
-        cells = new Cell[xSize, ySize];
+        InitializeCells();
+        SetupCellsPositions();
+    }
 
-        for (int i = 0; i < xSize; i++)
+    private void InitializeCells()
+    {
+        cells = new Cell[width, height];
+
+        for (int i = 0; i < width; i++)
         {
-            for (int j = 0; j < ySize; j++)
+            for (int j = 0; j < height; j++)
             {
                 // The cell id formula is (y * width) + x
-                cells[i, j] = new Cell(j * xSize + i, i, j, new Vector2(transform.position.x + (i * spacement), transform.position.y - (j * spacement)));
+                cells[i, j] = new Cell(j * width + i, i, j);
             }
         }
+    }
+
+    private void SetupCellsPositions()
+    {
+        for (int i = 0; i < width; i++)
+        {
+            for (int j = 0; j < height; j++)
+            {
+                cells[i, j].SetPosition(new Vector3(transform.position.x + (i * spacement), transform.position.y - (j * spacement)));
+            }
+        }
+    }
+
+    public bool IsSpawnCell(Cell cell)
+    {
+        bool isSpawnCell = false;
+        for (int i = 0; i < spawnCellsIds.Length; i++)
+        {
+            if (cell.id == spawnCellsIds[i])
+            {
+                isSpawnCell = true;
+                break;
+            }
+        }
+        return isSpawnCell;
     }
 
     public Cell[] GetSpawnCells()
@@ -44,28 +77,86 @@ public class Grid : MonoBehaviour
 
     public Cell GetCellById(int id)
     {
-        return cells[id % xSize, id / xSize];
+        return cells[id % width, id / width];
+    }
+
+    public Cell GetCellAtPosition(Vector3 position)
+    {
+        position.z = 0.0f;
+        Cell closestCell = null;
+        float closestSqrDistance = Mathf.Infinity;
+        float MAX_SQRDISANCE = 1.0f;
+
+        for (int i = 0; i < width; i++)
+        {
+            for (int j = 0; j < height; j++)
+            {
+                float currentSqrDistance = Vector3.SqrMagnitude(position - cells[i, j].GetPosition());
+                if (currentSqrDistance < MAX_SQRDISANCE && currentSqrDistance < closestSqrDistance)
+                {
+                    closestCell = cells[i, j];
+                    closestSqrDistance = currentSqrDistance;
+                }
+            }
+        }
+
+        return closestCell;
+    }
+
+    public int QuantityOfEmptyCellsAtColumn(int xIndex)
+    {
+        int spacesCounter = 0;
+        for (int i = 0; i < height; i++)
+        {
+            if (!cells[xIndex, i].IsFull())
+            {
+                spacesCounter++;
+            }
+        }
+        return spacesCounter;
+    }
+
+    public Cell GetTargetCellAtColumn(int xIndex)
+    {
+        Cell targetCell = null;
+        for (int i = height - 1; i >= 0; i--)
+        {
+            if (!cells[xIndex, i].IsFull())
+            {
+                targetCell = cells[xIndex, i];
+                break;
+            }
+        }
+        return targetCell;
     }
 
 #if UNITY_EDITOR
-    [ContextMenu("F")]
-    private void F()
+    private void Update()
     {
-        F2();
+        if (!Application.isPlaying)
+        {
+            if (cells == null || cells.GetLength(0) != width || cells.GetLength(1) != height)
+            {
+                InitializeCells();
+            }
+            SetupCellsPositions();
+        }
     }
 
     private void OnDrawGizmosSelected()
     {
         if (!Application.isPlaying)
         {
-            Gizmos.color = Color.blue;
             if (cells != null)
             {
-                for (int i = 0; i < xSize; i++)
+                for (int i = 0; i < width; i++)
                 {
-                    for (int j = 0; j < ySize; j++)
+                    for (int j = 0; j < height; j++)
                     {
-                        Gizmos.DrawCube(cells[i, j].position, CELL_GIZMO_SIZE);
+                        Color color = IsSpawnCell(cells[i, j]) ? Color.red : Color.blue;
+                        color.a = 0.5f;
+                        Gizmos.color = color;
+                        Gizmos.DrawCube(cells[i, j].GetPosition(), CELL_GIZMO_SIZE);
                     }
                 }
             }
@@ -73,22 +164,4 @@ public class Grid : MonoBehaviour
     }
 #endif
 
-}
-
-public struct Cell
-{
-    public readonly int id;
-    public readonly int xIndex;
-    public readonly int yIndex;
-    public readonly Vector3 position;
-    private bool isFull;
-
-    public Cell(int id, int xIndex, int yIndex, Vector3 position)
-    {
-        isFull = false;
-        this.id = id;
-        this.xIndex = xIndex;
-        this.yIndex = yIndex;
-        this.position = position;
-    }
 }
