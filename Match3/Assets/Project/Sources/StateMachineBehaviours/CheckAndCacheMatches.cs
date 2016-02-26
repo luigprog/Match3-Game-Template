@@ -39,7 +39,7 @@ namespace StateMachineBehaviours
 
             if (matchedTiles != null && matchedTiles.Count > 0)
             {
-                TileManager.Instance.CacheMatchedTiles(matchedTiles);
+                TileManager.Instance.AddToCacheOfMatchedTiles(matchedTiles);
             }
         }
     }

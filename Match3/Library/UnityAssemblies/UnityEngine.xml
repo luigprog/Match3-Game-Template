@@ -8930,7 +8930,6 @@ See Also: CanvasRenderer.SetMaterialCount, CanvasRenderer.SetTexture.</para>
         <para>Returns the component of Type type in the GameObject or any of its children using depth first search.</para>
       </summary>
       <param name="t">The type of Component to retrieve.</param>
-      <param name="includeInactive"></param>
       <returns>
         <para>A component of the matching type, if found.</para>
       </returns>
@@ -13853,7 +13852,6 @@ If a string, the string will be converted to raw bytes via &lt;a href="http:msdn
         <para>Returns the component of Type type in the GameObject or any of its children using depth first search.</para>
       </summary>
       <param name="type">The type of Component to retrieve.</param>
-      <param name="includeInactive"></param>
       <returns>
         <para>A component of the matching type, if found.</para>
       </returns>
@@ -33523,6 +33521,11 @@ Note that IgnoreLayerCollision will reset the trigger state of affected collider
         <para>Indicates whether cached data is available for this ProceduralMaterial's textures (only relevant for Cache and DoNothingAndCache loading behaviors).</para>
       </summary>
     </member>
+    <member name="P:UnityEngine.ProceduralMaterial.isFrozen">
+      <summary>
+        <para>Returns true if FreezeAndReleaseSourceData was called on this ProceduralMaterial.</para>
+      </summary>
+    </member>
     <member name="P:UnityEngine.ProceduralMaterial.isLoadTimeGenerated">
       <summary>
         <para>Should the ProceduralMaterial be generated at load time?</para>
@@ -33568,6 +33571,11 @@ Note that IgnoreLayerCollision will reset the trigger state of affected collider
     <member name="M:UnityEngine.ProceduralMaterial.ClearCache">
       <summary>
         <para>Clear the Procedural cache.</para>
+      </summary>
+    </member>
+    <member name="M:UnityEngine.ProceduralMaterial.FreezeAndReleaseSourceData">
+      <summary>
+        <para>Render a ProceduralMaterial immutable and release the underlying data to decrease the memory footprint.</para>
       </summary>
     </member>
     <member name="M:UnityEngine.ProceduralMaterial.GetGeneratedTexture(System.String)">

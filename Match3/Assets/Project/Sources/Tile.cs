@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EZCameraShake;
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -13,6 +14,8 @@ using UnityEngine;
 public class Tile : MonoBehaviour
 {
     #region Fields
+
+    private bool isBomb;
 
     /// <summary>
     /// Cell that this tile is attached to. 
@@ -35,7 +38,9 @@ public class Tile : MonoBehaviour
     /// </summary>
     private bool isFullyCreated;
 
-    private const float GRAVITY_FORCE = 6.0f;
+    private const float INITIAL_GRAVITY_FORCE = 2.0f;
+    private const float FINAL_GRAVITY_FORCE = 7.5f;
+    private const float BOUNCE_INTENSITY = 3.8f;
 
     #endregion
 
@@ -69,6 +74,18 @@ public class Tile : MonoBehaviour
         }
     }
 
+    public bool IsBomb
+    {
+        get { return isBomb; }
+        set
+        {
+            if (!isFullyCreated)
+            {
+                isBomb = value;
+            }
+        }
+    }
+
     #endregion
 
     private void Awake()
@@ -85,8 +102,19 @@ public class Tile : MonoBehaviour
     {
         if (!isFullyCreated)
         {
+            GameObject spriteObject;
+
             // Create and add the sprite
-            GameObject spriteObject = TileManager.Instance.CreateColoredTileSpriteObject();
+            if (!isBomb)
+            {
+                spriteObject = TileManager.Instance.CreateColoredTileSpriteObject();
+            }
+            else
+            {
+                // Temp
+                spriteObject = TileManager.Instance.CreateBombTileSpriteObject();
+            }
+
             spriteObject.transform.parent = transform;
             spriteObject.transform.localPosition = Vector3.zero;
             spriteRenderer = spriteObject.GetComponent<SpriteRenderer>();
@@ -105,19 +133,53 @@ public class Tile : MonoBehaviour
         TileManager.Instance.OnApplyGravityEffectToTiles -= OnApplyGravityEffectToTiles;
     }
 
+    private bool bouncedOnce;
+    private float gravityForce;
+    private float bounceForce;
+
     private void Update()
     {
         if (gravityActing)
         {
             // Gravity Effect
-            transform.position += Vector3.down * GRAVITY_FORCE * Time.deltaTime;
+            if (gravityForce < FINAL_GRAVITY_FORCE)
+            {
+                gravityForce += 12.0f * Time.deltaTime;
+                if (gravityForce > FINAL_GRAVITY_FORCE)
+                {
+                    gravityForce = FINAL_GRAVITY_FORCE;
+                }
+            }
+
+            if (bounceForce > 0.0f)
+            {
+                bounceForce -= 12.0f * Time.deltaTime;
+                if (bounceForce < 0.0f)
+                {
+                    bounceForce = 0.0f;
+                }
+            }
+
+            Vector3 gravityVector = Vector3.down * gravityForce;
+            Vector3 bounceVector = Vector3.up * bounceForce;
+
+            transform.position += (gravityVector + bounceVector) * Time.deltaTime;
             if (transform.position.y < cell.Position.y)
             {
                 // Land in the desired position/cell position
                 transform.position = cell.Position;
-                gravityActing = false;
-                // Tell the TileManager that we are done
-                TileManager.Instance.TellThatTileGravityEffectIsDone();
+                if (!bouncedOnce)
+                {
+                    bouncedOnce = true;
+                    gravityForce = INITIAL_GRAVITY_FORCE;
+                    bounceForce = BOUNCE_INTENSITY;
+                }
+                else
+                {
+                    gravityActing = false;
+                    // Tell the TileManager that we are done
+                    TileManager.Instance.TellThatTileGravityEffectIsDone();
+                }
             }
         }
     }
@@ -127,6 +189,17 @@ public class Tile : MonoBehaviour
     /// </summary>
     public void Clear()
     {
+        if (!isBomb)
+        {
+            ParticlesManager.Instance.PlayTileDestructionParticle(color, transform.position);
+        }
+        else
+        {
+            // temp bomb effect
+            CameraShaker.Instance.ShakeOnce(6.0f, 2.0f, 0.1f, 0.1f);
+            ParticlesManager.Instance.PlayTileDestructionParticle(color, transform.position);
+        }
+
         Destroy(gameObject);
 
         TileManager.Instance.TellThatTileWasCleared(this);
@@ -142,6 +215,9 @@ public class Tile : MonoBehaviour
         {
             // Not in the cell position, need to fall
             gravityActing = true;
+            gravityForce = INITIAL_GRAVITY_FORCE;
+            bounceForce = 0.0f;
+            bouncedOnce = false;
         }
         else
         {
@@ -264,5 +340,18 @@ public class Tile : MonoBehaviour
     public static bool AreMatchCompatible(Tile tileA, Tile tileB)
     {
         return tileA.Color == tileB.Color;
+    }
+
+    // temp activate
+    public void Activate(Tile activatorTile)
+    {
+        if (isBomb)
+        {
+            if (!activatorTile.isBomb)
+            {
+                TileManager.Instance.AddToCacheOfMatchedTiles(TileManager.Instance.GetAllTilesOfColor(activatorTile.Color));
+                TileManager.Instance.AddToCacheOfMatchedTiles(this);
+            }
+        }
     }
 }

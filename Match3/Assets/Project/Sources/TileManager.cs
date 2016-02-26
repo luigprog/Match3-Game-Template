@@ -35,6 +35,9 @@ public class TileManager : MonoBehaviour
     [SerializeField]
     private GameObject coloredTileSpriteObject;
 
+    [SerializeField]
+    private GameObject bombTileSpriteObject;
+
     /// <summary>
     /// Read from the grid, information used when creating the "spawnPipes". Each cell will generate
     /// a spawnPipe. Spawn pipe is an invisible concept.
@@ -85,6 +88,8 @@ public class TileManager : MonoBehaviour
     {
         // Pseudo singleton stuff
         instance = this;
+
+        cacheOfMatchedTiles = new List<Tile>();
     }
 
     private void Start()
@@ -134,7 +139,17 @@ public class TileManager : MonoBehaviour
 
         Tile tile = tileGameObject.AddComponent<Tile>();
         tile.SpawnPipeIndex = index;
-        tile.Color = COLOREDTILE_COLORS[UnityEngine.Random.Range(0, COLOREDTILE_COLORS.Length)];
+        if (UnityEngine.Random.Range(0, 50) == 1)
+        {
+            // Bomb
+            tile.Color = Color.white;
+            tile.IsBomb = true;
+        }
+        else
+        {
+            // Colored tile
+            tile.Color = COLOREDTILE_COLORS[UnityEngine.Random.Range(0, COLOREDTILE_COLORS.Length)];
+        }
         Tile.AttachTileToCell(tile, grid.GetTheLowerEmptyCellAtColumn(cellsReferenceForTileSpawner[index].xIndex));
 
         if (Application.isPlaying)
@@ -165,8 +180,12 @@ public class TileManager : MonoBehaviour
                 Cell cell = grid.Cells[i, j];
                 if (cell != null && cell.AttachedTile != null && !cell.AttachedTile.IsFullyCreated)
                 {
-                    // Tile is mutable, lets randomize its color
-                    cell.AttachedTile.Color = COLOREDTILE_COLORS[UnityEngine.Random.Range(0, COLOREDTILE_COLORS.Length)];
+                    // TEMP IF
+                    if (!cell.AttachedTile.IsBomb)
+                    {
+                        // Tile is mutable, lets randomize its color
+                        cell.AttachedTile.Color = COLOREDTILE_COLORS[UnityEngine.Random.Range(0, COLOREDTILE_COLORS.Length)];
+                    }
                 }
             }
         }
@@ -210,6 +229,14 @@ public class TileManager : MonoBehaviour
     public GameObject CreateColoredTileSpriteObject()
     {
         GameObject spriteObject = Instantiate(coloredTileSpriteObject);
+        spriteObject.SetActive(true);
+        spriteObject.name = "Sprite";
+        return spriteObject;
+    }
+
+    public GameObject CreateBombTileSpriteObject()
+    {
+        GameObject spriteObject = Instantiate(bombTileSpriteObject);
         spriteObject.SetActive(true);
         spriteObject.name = "Sprite";
         return spriteObject;
@@ -434,12 +461,17 @@ public class TileManager : MonoBehaviour
         return matchedTiles;
     }
 
-    /// <summary>
-    /// Cache a list of matched tiles for further usage.
-    /// </summary>
-    public void CacheMatchedTiles(List<Tile> matchedTiles)
+    public void AddToCacheOfMatchedTiles(List<Tile> tilesToAdd)
     {
-        cacheOfMatchedTiles = matchedTiles;
+        for (int i = 0; i < tilesToAdd.Count; i++)
+        {
+            AddToCacheOfMatchedTiles(tilesToAdd[i]);
+        }
+    }
+
+    public void AddToCacheOfMatchedTiles(Tile tileToAdd)
+    {
+        cacheOfMatchedTiles.Add(tileToAdd);
     }
 
     public List<Tile> GetCacheOfMatchedTiles()
@@ -447,10 +479,26 @@ public class TileManager : MonoBehaviour
         return cacheOfMatchedTiles;
     }
 
-    public void CleanCacheOfMatchedTiles()
+    public void ClearCacheOfMatchedTiles()
     {
-        cacheOfMatchedTiles = null;
+        cacheOfMatchedTiles.Clear();
     }
 
     #endregion
+
+    public List<Tile> GetAllTilesOfColor(Color color)
+    {
+        List<Tile> listOfTiles = new List<Tile>();
+        for (int x = 0; x < grid.Width; x++)
+        {
+            for (int y = 0; y < grid.Height; y++)
+            {
+                if (grid.Cells[x, y].AttachedTile != null && grid.Cells[x, y].AttachedTile.Color == color)
+                {
+                    listOfTiles.Add(grid.Cells[x, y].AttachedTile);
+                }
+            }
+        }
+        return listOfTiles;
+    }
 }

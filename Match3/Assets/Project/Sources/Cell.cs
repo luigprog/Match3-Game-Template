@@ -34,6 +34,8 @@ public class Cell
 
     private Tile attachedTile;
 
+    private bool isIgnored;
+
     public Tile AttachedTile { get { return attachedTile; } }
 
     /// <summary>
@@ -44,6 +46,7 @@ public class Cell
 
     public Cell(int id, int xIndex, int yIndex)
     {
+        isIgnored = false;
         attachedTile = null;
         position = Vector3.zero;
         this.id = id;
@@ -68,5 +71,49 @@ public class Cell
     public void DetachTile()
     {
         attachedTile = null;
+    }
+
+    public void SetIsIgnored(bool isIgnored)
+    {
+        this.isIgnored = isIgnored;
+    }
+
+    public bool IsIgnored()
+    {
+        return isIgnored;
+    }
+
+    public Vector2 GetVertex(SpriteAlignment alignment)
+    {
+        const float CELL_SIZE = 0.7f;
+        float halfOfCellSize = CELL_SIZE / 2.0f;
+        int horizontalModifier;
+        int verticalModifier;
+        switch (alignment)
+        {
+            case SpriteAlignment.TopLeft:
+                horizontalModifier = -1;
+                verticalModifier = 1;
+                break;
+            case SpriteAlignment.TopRight:
+                horizontalModifier = 1;
+                verticalModifier = 1;
+                break;
+            case SpriteAlignment.BottomLeft:
+                horizontalModifier = -1;
+                verticalModifier = -1;
+                break;
+            case SpriteAlignment.BottomRight:
+                horizontalModifier = 1;
+                verticalModifier = -1;
+                break;
+            default:
+                // Default is top left
+                horizontalModifier = -1;
+                verticalModifier = 1;
+                break;
+        }
+
+        return new Vector2(position.x + (horizontalModifier * halfOfCellSize), position.y + (verticalModifier * halfOfCellSize));
     }
 }

@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 /// <summary>
 /// A grid is a structured arrangement of cells. The grid properties can be configured by inspector.
@@ -30,6 +33,18 @@ public class Grid : MonoBehaviour
     /// </summary>
     [SerializeField]
     private int[] cellsReferencedByTileSpawner;
+
+    [SerializeField]
+    private int[] ignoredCells;
+
+    [SerializeField]
+    private int[] pipePathCells;
+
+    [SerializeField]
+    private Color gridBorderColor;
+
+    [SerializeField]
+    private Color pipeBorderColor;
 
     /// <summary>
     /// The multidimensinal array that hold all the cells of the grid.
@@ -78,6 +93,16 @@ public class Grid : MonoBehaviour
                 cells[i, j] = new Cell(id: j * width + i, xIndex: i, yIndex: j);
             }
         }
+
+        for (int i = 0; i < ignoredCells.Length; i++)
+        {
+            GetCellById(ignoredCells[i]).SetIsIgnored(true);
+        }
+    }
+
+    private int CalculateCellId(int xIndex, int yIndex)
+    {
+        return (yIndex * width) + xIndex;
     }
 
     /// <summary>
@@ -194,6 +219,181 @@ public class Grid : MonoBehaviour
         return isTileSpawnerReference;
     }
 
+    [EditorButton]
+    private void TestDraw()
+    {
+        DrawBorderAroundCells(cell => !cell.IsIgnored(), gridBorderColor);
+        DrawBorderAroundCells(cell => pipePathCells.Contains(CalculateCellId(cell.xIndex, cell.yIndex)), pipeBorderColor);
+    }
+
+    private void DrawBorderAroundCells(Predicate<Cell> predicateCellFilter, Color borderColor)
+    {
+        List<LineInfo> lines = new List<LineInfo>();
+        LineInfo currentLine = null;
+
+        //LEF TO RIGHT, CHECKIN UP #################################################################################
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (predicateCellFilter(cells[x, y]) && (y == 0 || !predicateCellFilter(cells[x, y - 1])))
+                {
+                    if (currentLine == null)
+                    {
+                        currentLine = new LineInfo();
+                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                    }
+                    else
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                    }
+                }
+                else
+                {
+                    if (currentLine != null)
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
+                        lines.Add(currentLine);
+                        currentLine = null;
+                    }
+                }
+            }
+
+            if (currentLine != null)
+            {
+                lines.Add(currentLine);
+                currentLine = null;
+            }
+        }
+        //#################################################################################
+
+
+        //lEFT TO RIGHT, CHECKIN DOWN ####################################################################
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (predicateCellFilter(cells[x, y]) && (y == height - 1 || !predicateCellFilter(cells[x, y + 1])))
+                {
+                    if (currentLine == null)
+                    {
+                        currentLine = new LineInfo();
+                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
+                    }
+                    else
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
+                    }
+                }
+                else
+                {
+                    if (currentLine != null)
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
+                        lines.Add(currentLine);
+                        currentLine = null;
+                    }
+                }
+            }
+
+            if (currentLine != null)
+            {
+                lines.Add(currentLine);
+                currentLine = null;
+            }
+        }
+        //#################################################################################
+
+        //TOP TO DOWN, CHECKIN LEFT #################################################################################
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (predicateCellFilter(cells[x, y]) && (x == 0 || !predicateCellFilter(cells[x - 1, y])))
+                {
+                    if (currentLine == null)
+                    {
+                        currentLine = new LineInfo();
+                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
+                    }
+                    else
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
+                    }
+                }
+                else
+                {
+                    if (currentLine != null)
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
+                        lines.Add(currentLine);
+                        currentLine = null;
+                    }
+                }
+            }
+
+            if (currentLine != null)
+            {
+                lines.Add(currentLine);
+                currentLine = null;
+            }
+        }
+        //#################################################################################
+
+        //TOP TO DOWN, CHECKIN RIGHT #################################################################################
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (predicateCellFilter(cells[x, y]) && (x == width - 1 || !predicateCellFilter(cells[x + 1, y])))
+                {
+                    if (currentLine == null)
+                    {
+                        currentLine = new LineInfo();
+                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
+                    }
+                    else
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
+                    }
+                }
+                else
+                {
+                    if (currentLine != null)
+                    {
+                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                        lines.Add(currentLine);
+                        currentLine = null;
+                    }
+                }
+            }
+
+            if (currentLine != null)
+            {
+                lines.Add(currentLine);
+                currentLine = null;
+            }
+        }
+        //#################################################################################
+
+
+        // <><><><><><><><><><><><><><><><><><><><><><><><><><<<><><><><><><><>
+        for (int i = 0; i < lines.Count; i++)
+        {
+            LineDrawer.Instance.DrawLine(lines[i].from, lines[i].to, borderColor, 0.03f);
+        }
+    }
+
+    private class LineInfo
+    {
+        public Vector2 from;
+        public Vector2 to;
+    }
+
     #region Editor
 #if UNITY_EDITOR
     private void Update()
@@ -218,11 +418,32 @@ public class Grid : MonoBehaviour
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        Color color = IsCellReferenceForTileSpawner(cells[i, j]) ? Color.red : Color.blue;
-                        color.a = 0.5f;
-                        Gizmos.color = color;
-                        Gizmos.DrawCube(cells[i, j].Position, Vector3.one * TileManager.TILE_SIZE);
+                        if (!ignoredCells.Contains(CalculateCellId(i, j)))
+                        {
+                            Color color = Color.blue;
+                            color.a = 0.5f;
+                            Gizmos.color = color;
+                            Gizmos.DrawCube(cells[i, j].Position, Vector3.one * TileManager.TILE_SIZE);
+                        }
                     }
+                }
+
+                // Tile Spawner
+                for (int i = 0; i < cellsReferencedByTileSpawner.Length; i++)
+                {
+                    Color color = Color.red;
+                    color.a = 0.5f;
+                    Gizmos.color = color;
+                    Gizmos.DrawCube(GetCellById(cellsReferencedByTileSpawner[i]).Position, Vector3.one * TileManager.TILE_SIZE * 0.2f);
+                }
+
+                // Pipe Path
+                for (int i = 0; i < pipePathCells.Length; i++)
+                {
+                    Color color = Color.green;
+                    color.a = 0.5f;
+                    Gizmos.color = color;
+                    Gizmos.DrawCube(GetCellById(pipePathCells[i]).Position, Vector3.one * TileManager.TILE_SIZE * 0.5f);
                 }
             }
         }

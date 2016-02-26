@@ -18,7 +18,7 @@ namespace StateMachineBehaviours
                 matchedTiles[i].Clear();
             }
 
-            TileManager.Instance.CleanCacheOfMatchedTiles();
+            TileManager.Instance.ClearCacheOfMatchedTiles();
         }
     }
 }
