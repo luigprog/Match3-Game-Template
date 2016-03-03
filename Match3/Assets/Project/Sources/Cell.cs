@@ -34,8 +34,6 @@ public class Cell
 
     private Tile attachedTile;
 
-    private bool isIgnored;
-
     public Tile AttachedTile { get { return attachedTile; } }
 
     /// <summary>
@@ -46,7 +44,6 @@ public class Cell
 
     public Cell(int id, int xIndex, int yIndex)
     {
-        isIgnored = false;
         attachedTile = null;
         position = Vector3.zero;
         this.id = id;
@@ -71,16 +68,6 @@ public class Cell
     public void DetachTile()
     {
         attachedTile = null;
-    }
-
-    public void SetIsIgnored(bool isIgnored)
-    {
-        this.isIgnored = isIgnored;
-    }
-
-    public bool IsIgnored()
-    {
-        return isIgnored;
     }
 
     public Vector2 GetVertex(SpriteAlignment alignment)

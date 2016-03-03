@@ -30,11 +30,14 @@ namespace StateMachineBehaviours
 
             if (avoidMatches)
             {
-                while (TileManager.Instance.GetLineMatchesInTheWholeGrid().Count > 0)
+                do
                 {
                     // Mutate the notFullyCreated tiles until there is no matches
                     TileManager.Instance.RandomlyMutateTiles();
-                }
+
+                    TileManager.Instance.ClearCacheOfMatchedTiles();
+                    TileManager.Instance.MatchLinesInTheWholeGrid();
+                } while (TileManager.Instance.GetCacheOfMatchedTiles().Count > 0);
             }
 
             TileManager.Instance.FinalizeSpawn();

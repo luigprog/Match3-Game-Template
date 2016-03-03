@@ -28,15 +28,15 @@ public class LineDrawer : MonoBehaviour
         }
     }
 
-    public void DrawLine(Vector2 from, Vector2 to, Color color, float thickness = 1.0f)
+    public void DrawLine(LineDrawInfo lineDrawInfo, Color color, float thickness = 1.0f)
     {
-        Vector2 fromTo = to - from;
+        Vector2 fromTo = lineDrawInfo.To - lineDrawInfo.From;
         lines[cursor].gameObject.isStatic = false;
         lines[cursor].color = color;
         lines[cursor].gameObject.SetActive(true);
         lines[cursor].transform.right = fromTo.normalized;
         // Getting the middle point between from and to 
-        lines[cursor].transform.localPosition = from + (fromTo * 0.5f);
+        lines[cursor].transform.localPosition = lineDrawInfo.From + (fromTo * 0.5f);
         Vector3 newScale = new Vector3(fromTo.magnitude, thickness, 1.0f);
         lines[cursor].transform.localScale = newScale;
         lines[cursor].gameObject.isStatic = true;
@@ -46,5 +46,14 @@ public class LineDrawer : MonoBehaviour
         {
             cursor = 0;
         }
+    }
+
+    public class LineDrawInfo
+    {
+        private Vector2 from;
+        private Vector2 to;
+
+        public Vector2 From { get { return from; } set { from = value; } }
+        public Vector2 To { get { return to; } set { to = value; } }
     }
 }

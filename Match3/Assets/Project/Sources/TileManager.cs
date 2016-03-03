@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -95,7 +94,7 @@ public class TileManager : MonoBehaviour
     private void Start()
     {
         // Initialize tile spawner functionality, based on the grid
-        cellsReferenceForTileSpawner = grid.GetCellsReferencedByTileSpawner();
+        cellsReferenceForTileSpawner = grid.GetTileSpawnerCells();
         spawnPipesCount = cellsReferenceForTileSpawner.Length;
         spawnPipeCursor = new int[spawnPipesCount];
     }
@@ -139,7 +138,8 @@ public class TileManager : MonoBehaviour
 
         Tile tile = tileGameObject.AddComponent<Tile>();
         tile.SpawnPipeIndex = index;
-        if (UnityEngine.Random.Range(0, 50) == 1)
+        // TODO: Review this logic. Temporary code to randomize between colored tiles and bombs
+        if (UnityEngine.Random.Range(0, 30) == 1)
         {
             // Bomb
             tile.Color = Color.white;
@@ -180,7 +180,7 @@ public class TileManager : MonoBehaviour
                 Cell cell = grid.Cells[i, j];
                 if (cell != null && cell.AttachedTile != null && !cell.AttachedTile.IsFullyCreated)
                 {
-                    // TEMP IF
+                    // TODO: Review this logic. Temporary code
                     if (!cell.AttachedTile.IsBomb)
                     {
                         // Tile is mutable, lets randomize its color
@@ -201,12 +201,15 @@ public class TileManager : MonoBehaviour
         {
             for (int j = 0; j < grid.Height; j++)
             {
-                Tile tile = grid.Cells[i, j].AttachedTile;
-                if (!tile.IsFullyCreated)
+                if (grid.Cells[i, j] != null)
                 {
-                    // For tiles that are not fully created(creation properties are still mutable),
-                    // finalize the creation
-                    tile.FinalizeCreation();
+                    Tile tile = grid.Cells[i, j].AttachedTile;
+                    if (!tile.IsFullyCreated)
+                    {
+                        // For tiles that are not fully created(creation properties are still mutable),
+                        // finalize the creation
+                        tile.FinalizeCreation();
+                    }
                 }
             }
         }
@@ -261,7 +264,8 @@ public class TileManager : MonoBehaviour
             for (int y = grid.Height - 2; y >= 0; y--)
             {
                 Cell cell = grid.Cells[x, y];
-                if (cell.IsFull() && !grid.Cells[x, y + 1].IsFull())
+                Cell bottomNeighborCell = grid.Cells[x, y + 1];
+                if (cell != null && cell.IsFull() && bottomNeighborCell != null && !bottomNeighborCell.IsFull())
                 {
                     // Empty cell below the tile, lets arrange it
                     Tile tile = cell.AttachedTile;
@@ -317,60 +321,76 @@ public class TileManager : MonoBehaviour
     #region Matches
 
     /// <summary>
-    /// Search for line(match3) matches in the rows and columns of the given tiles. Return the list
-    /// of matched tiles.
+    /// Identify and cache line(match3) matches in the rows and columns of the given tiles. 
     /// </summary>
-    public List<Tile> GetLineMatchesFromTiles(Tile tileA, Tile tileB)
+    public void MatchLinesFromTiles(Tile tileA, Tile tileB)
     {
-        List<Tile> matchedTiles = new List<Tile>();
+        List<Tile> tempNewMatchedTiles;
 
-        matchedTiles.AddRange(GetVerticalLineMatches(tileA.Cell.xIndex, previouslyMatchedTiles: matchedTiles));
-        matchedTiles.AddRange(GetHorizontalLineMatches(tileA.Cell.yIndex, previouslyMatchedTiles: matchedTiles));
+        tempNewMatchedTiles = GetVerticalLineMatches(tileA.Cell.xIndex);
+        AddToCacheOfMatchedTiles(tempNewMatchedTiles);
+
+        tempNewMatchedTiles = GetHorizontalLineMatches(tileA.Cell.yIndex);
+        AddToCacheOfMatchedTiles(tempNewMatchedTiles);
 
         // Avoid searching twice in the same row or column
         if (tileB.Cell.xIndex != tileA.Cell.xIndex)
         {
-            matchedTiles.AddRange(GetVerticalLineMatches(tileB.Cell.xIndex, previouslyMatchedTiles: matchedTiles));
+            tempNewMatchedTiles = GetVerticalLineMatches(tileB.Cell.xIndex);
+            AddToCacheOfMatchedTiles(tempNewMatchedTiles);
         }
 
         if (tileB.Cell.yIndex != tileA.Cell.yIndex)
         {
-            matchedTiles.AddRange(GetHorizontalLineMatches(tileB.Cell.yIndex, previouslyMatchedTiles: matchedTiles));
+            tempNewMatchedTiles = GetHorizontalLineMatches(tileB.Cell.yIndex);
+            AddToCacheOfMatchedTiles(tempNewMatchedTiles);
         }
-
-        matchedTiles.Distinct();
-
-        return matchedTiles;
     }
 
     /// <summary>
-    /// Search for line(match3) matches in the whole grid(all rows and columns) and return it.
+    /// Identify and cache line(match3) matches in the whole grid(all rows and columns).
     /// </summary>
-    public List<Tile> GetLineMatchesInTheWholeGrid()
+    public void MatchLinesInTheWholeGrid()
     {
-        List<Tile> matchedTiles = new List<Tile>();
         for (int i = 0; i < grid.Height; i++)
         {
-            matchedTiles.AddRange(GetHorizontalLineMatches(i, previouslyMatchedTiles: matchedTiles));
+            List<Tile> newMachedTiles = GetHorizontalLineMatches(i);
+            AddToCacheOfMatchedTiles(newMachedTiles);
         }
         for (int i = 0; i < grid.Width; i++)
         {
-            matchedTiles.AddRange(GetVerticalLineMatches(i, previouslyMatchedTiles: matchedTiles));
+            List<Tile> newMachedTiles = GetVerticalLineMatches(i);
+            AddToCacheOfMatchedTiles(newMachedTiles);
         }
-        matchedTiles.Distinct();
-        return matchedTiles;
+    }
+
+    public void MatchAllTilesOfColor(Color color)
+    {
+        List<Tile> listOfTiles = new List<Tile>();
+        for (int x = 0; x < grid.Width; x++)
+        {
+            for (int y = 0; y < grid.Height; y++)
+            {
+                if (grid.Cells[x, y] != null &&
+                    grid.Cells[x, y].AttachedTile != null &&
+                    !cacheOfMatchedTiles.Contains(grid.Cells[x, y].AttachedTile) &&
+                    grid.Cells[x, y].AttachedTile.Color == color)
+                {
+                    listOfTiles.Add(grid.Cells[x, y].AttachedTile);
+                }
+            }
+        }
+        AddToCacheOfMatchedTiles(listOfTiles);
     }
 
     /// <summary>
-    /// Search for line(match3) matches in a given row, and return the list of matched tiles.
+    /// Search for line(match3) matches in a given row, and return the list of matched tiles. The
+    /// method will use the cache of matched matches to obtain the information about the previously
+    /// matched tiles, so it can avoid making matches with tiles already involved in matches.
     /// </summary>
     /// <param name="rowIndex">The index of the row, yIndex.</param>
-    /// <param name="previouslyMatchedTiles">
-    /// The list of previously matche tiles, so it can be ignored when looking for matches.
-    /// </param>
-    public List<Tile> GetHorizontalLineMatches(int rowIndex, List<Tile> previouslyMatchedTiles = null)
+    private List<Tile> GetHorizontalLineMatches(int rowIndex)
     {
-        previouslyMatchedTiles = previouslyMatchedTiles ?? new List<Tile>();
         List<Tile> matchedTiles = new List<Tile>();
 
         int consecutiveCompatibilities = 0;
@@ -378,9 +398,12 @@ public class TileManager : MonoBehaviour
         // always compare the current i with the previous i(i-1)
         for (int i = 1; i < grid.Width; i++)
         {
-            if (!previouslyMatchedTiles.Contains(grid.Cells[i - 1, rowIndex].AttachedTile) &&
-                !previouslyMatchedTiles.Contains(grid.Cells[i, rowIndex].AttachedTile) &&
-                Tile.AreMatchCompatible(grid.Cells[i - 1, rowIndex].AttachedTile, grid.Cells[i, rowIndex].AttachedTile))
+            if (grid.Cells[i - 1, rowIndex] != null &&
+                grid.Cells[i, rowIndex] != null &&
+                !cacheOfMatchedTiles.Contains(grid.Cells[i - 1, rowIndex].AttachedTile) &&
+                !cacheOfMatchedTiles.Contains(grid.Cells[i, rowIndex].AttachedTile) &&
+                grid.Cells[i - 1, rowIndex].AttachedTile.IsMatchCompatibleWith(grid.Cells[i, rowIndex].AttachedTile) &&
+                grid.Cells[i, rowIndex].AttachedTile.IsMatchCompatibleWith(grid.Cells[i - 1, rowIndex].AttachedTile))
             {
                 // Tile i and Tile i-1 are not contained in the previouslyMatched list, and are
                 // match compatible!
@@ -412,15 +435,13 @@ public class TileManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Search for line(match3) matches in a given column, and return the list of matched tiles.
+    /// Search for line(match3) matches in a given column, and return the list of matched tiles. The
+    /// method will use the cache of matched matches to obtain the information about the previously
+    /// matched tiles, so it can avoid making matches with tiles already involved in matches.
     /// </summary>
     /// <param name="rowIndex">The index of the column, xIndex.</param>
-    /// <param name="previouslyMatchedTiles">
-    /// The list of previously matche tiles, so it can be ignored when looking for matches.
-    /// </param>
-    public List<Tile> GetVerticalLineMatches(int columnIndex, List<Tile> previouslyMatchedTiles = null)
+    private List<Tile> GetVerticalLineMatches(int columnIndex)
     {
-        previouslyMatchedTiles = previouslyMatchedTiles ?? new List<Tile>();
         List<Tile> matchedTiles = new List<Tile>();
 
         int consecutiveCompatibilities = 0;
@@ -428,9 +449,12 @@ public class TileManager : MonoBehaviour
         // always compare the current i with the previous i(i-1)
         for (int i = 1; i < grid.Height; i++)
         {
-            if (!previouslyMatchedTiles.Contains(grid.Cells[columnIndex, i - 1].AttachedTile) &&
-                !previouslyMatchedTiles.Contains(grid.Cells[columnIndex, i].AttachedTile) &&
-                Tile.AreMatchCompatible(grid.Cells[columnIndex, i - 1].AttachedTile, grid.Cells[columnIndex, i].AttachedTile))
+            if (grid.Cells[columnIndex, i - 1] != null &&
+                grid.Cells[columnIndex, i] != null &&
+                !cacheOfMatchedTiles.Contains(grid.Cells[columnIndex, i - 1].AttachedTile) &&
+                !cacheOfMatchedTiles.Contains(grid.Cells[columnIndex, i].AttachedTile) &&
+                grid.Cells[columnIndex, i - 1].AttachedTile.IsMatchCompatibleWith(grid.Cells[columnIndex, i].AttachedTile) &&
+                grid.Cells[columnIndex, i].AttachedTile.IsMatchCompatibleWith(grid.Cells[columnIndex, i - 1].AttachedTile))
             {
                 // Tile i and Tile i-1 are not contained in the previouslyMatched list, and are
                 // match compatible!
@@ -485,20 +509,4 @@ public class TileManager : MonoBehaviour
     }
 
     #endregion
-
-    public List<Tile> GetAllTilesOfColor(Color color)
-    {
-        List<Tile> listOfTiles = new List<Tile>();
-        for (int x = 0; x < grid.Width; x++)
-        {
-            for (int y = 0; y < grid.Height; y++)
-            {
-                if (grid.Cells[x, y].AttachedTile != null && grid.Cells[x, y].AttachedTile.Color == color)
-                {
-                    listOfTiles.Add(grid.Cells[x, y].AttachedTile);
-                }
-            }
-        }
-        return listOfTiles;
-    }
 }

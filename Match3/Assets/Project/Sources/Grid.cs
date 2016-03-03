@@ -32,10 +32,10 @@ public class Grid : MonoBehaviour
     /// functionality. There will be one spawnPipe per cell.
     /// </summary>
     [SerializeField]
-    private int[] cellsReferencedByTileSpawner;
+    private int[] tileSpawnerCellsSetup;
 
     [SerializeField]
-    private int[] ignoredCells;
+    private int[] nullCells;
 
     [SerializeField]
     private int[] pipePathCells;
@@ -56,6 +56,8 @@ public class Grid : MonoBehaviour
     /// </summary>
     private Cell[,] cells;
 
+    private Cell[] tileSpawnerCells;
+
     #endregion
 
     #region Properties
@@ -72,8 +74,15 @@ public class Grid : MonoBehaviour
 
     private void Awake()
     {
-        CreateCells();
-        PlaceCells();
+        if (Application.isPlaying)
+        {
+            CreateCells();
+            PlaceCells();
+
+            // Draw outlines
+            DrawOutlineOfCells(gridBorderColor);
+            DrawOutlineOfCells(pipeBorderColor, cell => pipePathCells.Contains(CalculateCellId(cell.xIndex, cell.yIndex)));
+        }
     }
 
     /// <summary>
@@ -90,20 +99,34 @@ public class Grid : MonoBehaviour
             {
                 // The cell's id formula is (y * width) + x
                 // x = i, y = j
-                cells[i, j] = new Cell(id: j * width + i, xIndex: i, yIndex: j);
+                int id = CalculateCellId(i, j);
+                if (!nullCells.Contains(id))
+                {
+                    cells[i, j] = new Cell(id: j * width + i, xIndex: i, yIndex: j);
+                }
+                else
+                {
+                    // Null/Ignored cell, doesnt exist in the game
+                    cells[i, j] = null;
+                }
             }
         }
 
-        for (int i = 0; i < ignoredCells.Length; i++)
+        // Store spawner cells array
+        if (tileSpawnerCellsSetup != null)
         {
-            GetCellById(ignoredCells[i]).SetIsIgnored(true);
+            tileSpawnerCells = new Cell[tileSpawnerCellsSetup.Length];
+            for (int i = 0; i < tileSpawnerCellsSetup.Length; i++)
+            {
+                Cell spawnerCell = GetCellById(tileSpawnerCellsSetup[i]);
+                if (spawnerCell != null)
+                {
+                    tileSpawnerCells[i] = spawnerCell;
+                }
+            }
         }
     }
 
-    private int CalculateCellId(int xIndex, int yIndex)
-    {
-        return (yIndex * width) + xIndex;
-    }
 
     /// <summary>
     /// Iterate through all cells and set its position in the world. Called in the awake of the Grid
@@ -115,10 +138,18 @@ public class Grid : MonoBehaviour
         {
             for (int j = 0; j < height; j++)
             {
-                cells[i, j].Position = new Vector3(transform.position.x + (i * (TileManager.TILE_SIZE + spacement)),
-                                                   transform.position.y - (j * (TileManager.TILE_SIZE + spacement)));
+                if (cells[i, j] != null)
+                {
+                    cells[i, j].Position = new Vector3(transform.position.x + (i * (TileManager.TILE_SIZE + spacement)),
+                                                       transform.position.y - (j * (TileManager.TILE_SIZE + spacement)));
+                }
             }
         }
+    }
+
+    private int CalculateCellId(int xIndex, int yIndex)
+    {
+        return (yIndex * width) + xIndex;
     }
 
     public Cell GetCellById(int id)
@@ -148,12 +179,15 @@ public class Grid : MonoBehaviour
         {
             for (int j = 0; j < height; j++)
             {
-                // PS: Using sqrMagnitude instead of magnitude/distance because it is more performant
-                float currentSqrDistance = Vector3.SqrMagnitude(position - cells[i, j].Position);
-                if (currentSqrDistance < sqrDistanceConsideredTooFar && currentSqrDistance < closestSqrDistance)
+                if (cells[i, j] != null)
                 {
-                    closestCell = cells[i, j];
-                    closestSqrDistance = currentSqrDistance;
+                    // PS: Using sqrMagnitude instead of magnitude/distance because it is more performant
+                    float currentSqrDistance = Vector3.SqrMagnitude(position - cells[i, j].Position);
+                    if (currentSqrDistance < sqrDistanceConsideredTooFar && currentSqrDistance < closestSqrDistance)
+                    {
+                        closestCell = cells[i, j];
+                        closestSqrDistance = currentSqrDistance;
+                    }
                 }
             }
         }
@@ -166,7 +200,7 @@ public class Grid : MonoBehaviour
         int spacesCounter = 0;
         for (int i = 0; i < height; i++)
         {
-            if (!cells[xIndex, i].IsFull())
+            if (cells[xIndex, i] != null && !cells[xIndex, i].IsFull())
             {
                 spacesCounter++;
             }
@@ -183,7 +217,7 @@ public class Grid : MonoBehaviour
         Cell lowerEmptyCell = null;
         for (int i = height - 1; i >= 0; i--)
         {
-            if (!cells[xIndex, i].IsFull())
+            if (cells[xIndex, i] != null && !cells[xIndex, i].IsFull())
             {
                 lowerEmptyCell = cells[xIndex, i];
                 break;
@@ -195,203 +229,141 @@ public class Grid : MonoBehaviour
     /// <summary>
     /// Get the array of tiles used as reference in the TileManager tile spawner functionality.
     /// </summary>
-    public Cell[] GetCellsReferencedByTileSpawner()
+    public Cell[] GetTileSpawnerCells()
     {
-        Cell[] spawnCells = new Cell[cellsReferencedByTileSpawner.Length];
-        for (int i = 0; i < cellsReferencedByTileSpawner.Length; i++)
-        {
-            spawnCells[i] = GetCellById(cellsReferencedByTileSpawner[i]);
-        }
-        return spawnCells;
+        return tileSpawnerCells;
     }
 
-    public bool IsCellReferenceForTileSpawner(Cell cellToTest)
+    public Cell GetCellNeighborAtDirection(Cell cell, Vector2 neighborDirection)
     {
-        bool isTileSpawnerReference = false;
-        for (int i = 0; i < cellsReferencedByTileSpawner.Length; i++)
+        Cell neighbor = null;
+
+        if (cell != null)
         {
-            if (cellToTest.id == cellsReferencedByTileSpawner[i])
+            if (neighborDirection == Vector2.up && cell.yIndex > 0)
             {
-                isTileSpawnerReference = true;
-                break;
+                neighbor = cells[cell.xIndex, cell.yIndex - 1];
+            }
+            else if (neighborDirection == Vector2.down && cell.yIndex < height - 1)
+            {
+                neighbor = cells[cell.xIndex, cell.yIndex + 1];
+            }
+            else if (neighborDirection == Vector2.left && cell.xIndex > 0)
+            {
+                neighbor = cells[cell.xIndex - 1, cell.yIndex];
+            }
+            else if (neighborDirection == Vector2.right && cell.xIndex < width - 1)
+            {
+                neighbor = cells[cell.xIndex + 1, cell.yIndex];
             }
         }
-        return isTileSpawnerReference;
+
+        return neighbor;
     }
 
-    [EditorButton]
-    private void TestDraw()
+    private void DrawOutlineOfCells(Color borderColor, Predicate<Cell> PredicateCellFilter = null)
     {
-        DrawBorderAroundCells(cell => !cell.IsIgnored(), gridBorderColor);
-        DrawBorderAroundCells(cell => pipePathCells.Contains(CalculateCellId(cell.xIndex, cell.yIndex)), pipeBorderColor);
-    }
-
-    private void DrawBorderAroundCells(Predicate<Cell> predicateCellFilter, Color borderColor)
-    {
-        List<LineInfo> lines = new List<LineInfo>();
-        LineInfo currentLine = null;
-
-        //LEF TO RIGHT, CHECKIN UP #################################################################################
-        for (int y = 0; y < height; y++)
+        List<LineDrawer.LineDrawInfo> outlines = new List<LineDrawer.LineDrawInfo>();
+        if (PredicateCellFilter == null)
         {
-            for (int x = 0; x < width; x++)
+            // If no filter defined, then lets just create a predicate that always return true, so
+            // it wont filter anything
+            PredicateCellFilter = cell => true;
+        }
+        Counter2D counter2d = new Counter2D(width - 1, height - 1);
+
+        for (int i = 0; i < 4; i++)
+        {
+            #region Setup Test State
+
+            SpriteAlignment drawLineFromCellVertex = SpriteAlignment.TopLeft;
+            SpriteAlignment drawLineToCellVertex = SpriteAlignment.TopRight;
+            Vector2 directionOfNeighborToLookFor = Vector2.zero;
+            // i here is also the index of the state(ITERATE_ROW_DRAW_UP, ITERATE_ROW_DRAW_DOWN...)
+            switch (i)
             {
-                if (predicateCellFilter(cells[x, y]) && (y == 0 || !predicateCellFilter(cells[x, y - 1])))
+                case 0: // ITERATE_ROW_DRAW_UP:
+                    drawLineFromCellVertex = SpriteAlignment.TopLeft;
+                    drawLineToCellVertex = SpriteAlignment.TopRight;
+                    directionOfNeighborToLookFor = Vector2.up;
+                    break;
+                case 1: // ITERATE_ROW_DRAW_DOWN:
+                    drawLineFromCellVertex = SpriteAlignment.BottomLeft;
+                    drawLineToCellVertex = SpriteAlignment.BottomRight;
+                    directionOfNeighborToLookFor = Vector2.down;
+                    break;
+                case 2: // ITERATE_COLUMN_DRAW_LEFT:
+                    drawLineFromCellVertex = SpriteAlignment.TopLeft;
+                    drawLineToCellVertex = SpriteAlignment.BottomLeft;
+                    directionOfNeighborToLookFor = Vector2.left;
+                    break;
+                case 3: // ITERATE_COLUMN_DRAW_RIGHT:
+                    drawLineFromCellVertex = SpriteAlignment.TopRight;
+                    drawLineToCellVertex = SpriteAlignment.BottomRight;
+                    directionOfNeighborToLookFor = Vector2.right;
+                    break;
+            }
+
+            // Invert the outer loop when iterating the columns, instead of the rows(default/first case)
+            // ITERATE_COLUMN_DRAW_LEFT aka 2 || ITERATE_COLUMN_DRAW_RIGHT aka 3
+            counter2d.InvertDimensions(i == 2 || i == 3);
+            counter2d.Reset();
+
+            #endregion
+
+            #region The real test, Algorithm that analyze the cells and create the outline info
+
+            LineDrawer.LineDrawInfo currentLine = null;
+            Cell lastCellThatDidSomething = null;
+
+            while (!counter2d.Completed())
+            {
+                int x = counter2d.I;
+                int y = counter2d.J;
+                Cell neighborCell = GetCellNeighborAtDirection(cells[x, y], directionOfNeighborToLookFor);
+
+                if (cells[x, y] != null &&
+                    PredicateCellFilter(cells[x, y]) &&
+                    (neighborCell == null || !PredicateCellFilter(neighborCell)))
                 {
                     if (currentLine == null)
                     {
-                        currentLine = new LineInfo();
-                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                        currentLine = new LineDrawer.LineDrawInfo();
+                        currentLine.From = cells[x, y].GetVertex(drawLineFromCellVertex);
+                        currentLine.To = cells[x, y].GetVertex(drawLineToCellVertex);
                     }
                     else
                     {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
+                        currentLine.To = cells[x, y].GetVertex(drawLineToCellVertex);
                     }
+                    lastCellThatDidSomething = cells[x, y];
                 }
                 else
                 {
-                    if (currentLine != null)
+                    if (currentLine != null && lastCellThatDidSomething != null)
                     {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
-                        lines.Add(currentLine);
+                        currentLine.To = lastCellThatDidSomething.GetVertex(drawLineToCellVertex);
+                        outlines.Add(currentLine);
                         currentLine = null;
                     }
                 }
-            }
 
-            if (currentLine != null)
-            {
-                lines.Add(currentLine);
-                currentLine = null;
+                if (counter2d.SecondaryDimensionCompleted() && currentLine != null)
+                {
+                    outlines.Add(currentLine);
+                    currentLine = null;
+                }
+
+                counter2d.Advance();
             }
+            #endregion
         }
-        //#################################################################################
 
-
-        //lEFT TO RIGHT, CHECKIN DOWN ####################################################################
-        for (int y = 0; y < height; y++)
+        // Finally, actually draw the outline/lines
+        for (int i = 0; i < outlines.Count; i++)
         {
-            for (int x = 0; x < width; x++)
-            {
-                if (predicateCellFilter(cells[x, y]) && (y == height - 1 || !predicateCellFilter(cells[x, y + 1])))
-                {
-                    if (currentLine == null)
-                    {
-                        currentLine = new LineInfo();
-                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
-                    }
-                    else
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
-                    }
-                }
-                else
-                {
-                    if (currentLine != null)
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
-                        lines.Add(currentLine);
-                        currentLine = null;
-                    }
-                }
-            }
-
-            if (currentLine != null)
-            {
-                lines.Add(currentLine);
-                currentLine = null;
-            }
+            LineDrawer.Instance.DrawLine(outlines[i], borderColor, 0.03f);
         }
-        //#################################################################################
-
-        //TOP TO DOWN, CHECKIN LEFT #################################################################################
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                if (predicateCellFilter(cells[x, y]) && (x == 0 || !predicateCellFilter(cells[x - 1, y])))
-                {
-                    if (currentLine == null)
-                    {
-                        currentLine = new LineInfo();
-                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
-                    }
-                    else
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomLeft);
-                    }
-                }
-                else
-                {
-                    if (currentLine != null)
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopLeft);
-                        lines.Add(currentLine);
-                        currentLine = null;
-                    }
-                }
-            }
-
-            if (currentLine != null)
-            {
-                lines.Add(currentLine);
-                currentLine = null;
-            }
-        }
-        //#################################################################################
-
-        //TOP TO DOWN, CHECKIN RIGHT #################################################################################
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                if (predicateCellFilter(cells[x, y]) && (x == width - 1 || !predicateCellFilter(cells[x + 1, y])))
-                {
-                    if (currentLine == null)
-                    {
-                        currentLine = new LineInfo();
-                        currentLine.from = cells[x, y].GetVertex(SpriteAlignment.TopRight);
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
-                    }
-                    else
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.BottomRight);
-                    }
-                }
-                else
-                {
-                    if (currentLine != null)
-                    {
-                        currentLine.to = cells[x, y].GetVertex(SpriteAlignment.TopRight);
-                        lines.Add(currentLine);
-                        currentLine = null;
-                    }
-                }
-            }
-
-            if (currentLine != null)
-            {
-                lines.Add(currentLine);
-                currentLine = null;
-            }
-        }
-        //#################################################################################
-
-
-        // <><><><><><><><><><><><><><><><><><><><><><><><><><<<><><><><><><><>
-        for (int i = 0; i < lines.Count; i++)
-        {
-            LineDrawer.Instance.DrawLine(lines[i].from, lines[i].to, borderColor, 0.03f);
-        }
-    }
-
-    private class LineInfo
-    {
-        public Vector2 from;
-        public Vector2 to;
     }
 
     #region Editor
@@ -400,10 +372,7 @@ public class Grid : MonoBehaviour
     {
         if (!Application.isPlaying)
         {
-            if (cells == null || cells.GetLength(0) != width || cells.GetLength(1) != height)
-            {
-                CreateCells();
-            }
+            CreateCells();
             PlaceCells();
         }
     }
@@ -418,7 +387,7 @@ public class Grid : MonoBehaviour
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        if (!ignoredCells.Contains(CalculateCellId(i, j)))
+                        if (cells[i, j] != null)
                         {
                             Color color = Color.blue;
                             color.a = 0.5f;
@@ -429,12 +398,12 @@ public class Grid : MonoBehaviour
                 }
 
                 // Tile Spawner
-                for (int i = 0; i < cellsReferencedByTileSpawner.Length; i++)
+                for (int i = 0; i < tileSpawnerCellsSetup.Length; i++)
                 {
                     Color color = Color.red;
                     color.a = 0.5f;
                     Gizmos.color = color;
-                    Gizmos.DrawCube(GetCellById(cellsReferencedByTileSpawner[i]).Position, Vector3.one * TileManager.TILE_SIZE * 0.2f);
+                    Gizmos.DrawCube(GetCellById(tileSpawnerCellsSetup[i]).Position, Vector3.one * TileManager.TILE_SIZE * 0.2f);
                 }
 
                 // Pipe Path

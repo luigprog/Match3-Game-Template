@@ -15,8 +15,6 @@ public class Tile : MonoBehaviour
 {
     #region Fields
 
-    private bool isBomb;
-
     /// <summary>
     /// Cell that this tile is attached to. 
     /// </summary>
@@ -29,14 +27,19 @@ public class Tile : MonoBehaviour
     /// </summary>
     private int spawnPipeIndex;
 
-    private SpriteRenderer spriteRenderer;
-
-    private bool gravityActing;
-
     /// <summary>
     /// Once a tile is fully created, its creation properties like color, become immutable.
     /// </summary>
     private bool isFullyCreated;
+
+    private SpriteRenderer spriteRenderer;
+
+    private bool gravityActing;
+    private bool bouncedOnce;
+    private float gravityForce;
+    private float bounceForce;
+
+    private bool isBomb;
 
     private const float INITIAL_GRAVITY_FORCE = 2.0f;
     private const float FINAL_GRAVITY_FORCE = 7.5f;
@@ -133,10 +136,6 @@ public class Tile : MonoBehaviour
         TileManager.Instance.OnApplyGravityEffectToTiles -= OnApplyGravityEffectToTiles;
     }
 
-    private bool bouncedOnce;
-    private float gravityForce;
-    private float bounceForce;
-
     private void Update()
     {
         if (gravityActing)
@@ -162,26 +161,51 @@ public class Tile : MonoBehaviour
 
             Vector3 gravityVector = Vector3.down * gravityForce;
             Vector3 bounceVector = Vector3.up * bounceForce;
-
             transform.position += (gravityVector + bounceVector) * Time.deltaTime;
+
+            // Tile position overpassed cell position?
             if (transform.position.y < cell.Position.y)
             {
-                // Land in the desired position/cell position
+                // Yes, lets fix the position
+                // Land in the desired position(cell position)
                 transform.position = cell.Position;
                 if (!bouncedOnce)
                 {
+                    // First time reaching the cell position, not bounced yet
+                    // In the gravity effect of the tile, it must bounce once
+                    // Lets setup the bounce effect
                     bouncedOnce = true;
                     gravityForce = INITIAL_GRAVITY_FORCE;
                     bounceForce = BOUNCE_INTENSITY;
                 }
                 else
                 {
+                    // Landing for the second time, already bounced
+                    // So, gravity effect is done!
                     gravityActing = false;
                     // Tell the TileManager that we are done
                     TileManager.Instance.TellThatTileGravityEffectIsDone();
                 }
             }
         }
+    }
+
+    // Temp activate
+    public void Activate(Tile activatorTile)
+    {
+        if (isBomb)
+        {
+            if (!activatorTile.isBomb)
+            {
+                TileManager.Instance.MatchAllTilesOfColor(activatorTile.Color);
+                TileManager.Instance.AddToCacheOfMatchedTiles(this);
+            }
+        }
+    }
+
+    public bool IsMatchCompatibleWith(Tile otherTile)
+    {
+        return !isBomb && color == otherTile.Color;
     }
 
     /// <summary>
@@ -195,7 +219,7 @@ public class Tile : MonoBehaviour
         }
         else
         {
-            // temp bomb effect
+            // Temp bomb effect
             CameraShaker.Instance.ShakeOnce(6.0f, 2.0f, 0.1f, 0.1f);
             ParticlesManager.Instance.PlayTileDestructionParticle(color, transform.position);
         }
@@ -332,26 +356,5 @@ public class Tile : MonoBehaviour
     {
         return (tileA.cell.xIndex == tileB.cell.xIndex && Mathf.Abs(tileA.cell.yIndex - tileB.cell.yIndex) == 1)
             || (tileA.cell.yIndex == tileB.cell.yIndex && Mathf.Abs(tileA.cell.xIndex - tileB.cell.xIndex) == 1);
-    }
-
-    /// <summary>
-    /// Returns if tileA and tileB can be matched.
-    /// </summary>
-    public static bool AreMatchCompatible(Tile tileA, Tile tileB)
-    {
-        return tileA.Color == tileB.Color;
-    }
-
-    // temp activate
-    public void Activate(Tile activatorTile)
-    {
-        if (isBomb)
-        {
-            if (!activatorTile.isBomb)
-            {
-                TileManager.Instance.AddToCacheOfMatchedTiles(TileManager.Instance.GetAllTilesOfColor(activatorTile.Color));
-                TileManager.Instance.AddToCacheOfMatchedTiles(this);
-            }
-        }
     }
 }
